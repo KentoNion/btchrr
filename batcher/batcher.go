@@ -1,8 +1,10 @@
 package batcher
 
 import (
-	"btchrr/models"
+	"strings"
 	"errors"
+
+	"btchrr/models"
 )
 
 // Batcher - encapsulates the batch size for splitting a slice into batches
@@ -74,14 +76,14 @@ func (b *Batcher) BuildBatchQuery(singleQuery string, batchSize int, batchedItem
 	if err != nil {
 		return []models.BatchedQuery{}, err
 	}
-	
+
 	switch placeholder {
 	case "?":
-		return b.buildSqliteQuery(singleQuery, batchSize, batchedItems)
+		return b.buildSqliteQuery(singleQuery, batchedItems)
 	case "$":
-		return b.buildPostgresQuery(singleQuery, batchSize, batchedItems)
+		return b.buildPostgresQuery(singleQuery, batchedItems)
 	default:
-		return b.buildQueryWithNamedPlaceholders(singleQuery, batchSize, placeholder, batchedItems)
+		return b.buildQueryWithNamedPlaceholders(singleQuery, placeholder, batchedItems)
 	}
 }
 
@@ -95,14 +97,34 @@ func (b *Batcher) detectPlaceholders(query string) (string, error) {
 	return "", models.ErrCannotDetectPlaceholder
 }
 
-func (b *Batcher) buildSqliteQuery(singleQuery string, batchSize int, batchedItems [][]any) (batchedQueries []models.BatchedQuery, err error) {
+func (b *Batcher) buildSqliteQuery(singleQuery string, batchedItems [][]any) (batchedQueries models.BatchedQuery, err error) {
+	// INSERT INTO users VALUES (?, ?);
+	idx := strings.Index(strings.ToLower(singleQuery), "values")
+	if idx == -1 {
+		return "", errors.New("no values found in query")
+	}
+
+	prefix := singleQuery[:idx+6] // +6 - values
+	valuesPart := singleQuery[idx+6:]
+
+	numOfInserts := strings.Count(valuesPart, "?")
+	if numOfInserts == 0 {
+		return "", errors.New("no placeholders found in query")
+	}
+
+	singleItemValues := "(" + strings.Repeat("?, ", numOfInserts - 1) + "?)"
+	//INSERT INTO users (name, age) VALUES (?, ?), (?, ?), (?, ?);
+	newValues := strings.Repeat(singleItemValues + ", ", b.batchSize - 1) + singleItemValues
+	newQuery := prefix + " " + newValues + ";"
+
+
+	return models.BatchedQuery(newQuery), nil
+}
+
+func (b *Batcher) buildPostgresQuery(singleQuery string, batchedItems [][]any) (batchedQueries []models.BatchedQuery, err error) {
 	return []models.BatchedQuery{}, errors.New("not implemented")
 }
 
-func (b *Batcher) buildPostgresQuery(singleQuery string, batchSize int, batchedItems [][]any) (batchedQueries []models.BatchedQuery, err error) {
-	return []models.BatchedQuery{}, errors.New("not implemented")
-}
-
-func (b *Batcher) buildQueryWithNamedPlaceholders(singleQuery string, batchSize int, placeholder string, batchedItems [][]any) (batchedQueries []models.BatchedQuery, err error) {
+func (b *Batcher) buildQueryWithNamedPlaceholders(singleQuery string, placeholder string, batchedItems [][]any) (batchedQueries []models.BatchedQuery, err error) {
 	return []models.BatchedQuery{}, errors.New("not implemented")
 }

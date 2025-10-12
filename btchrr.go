@@ -1,18 +1,19 @@
 package Btchrr
 
 import (
-	"btchrr/batcher"
-	"btchrr/dbadapter"
 	"context"
 	"database/sql"
 
 	"btchrr/models"
+	"btchrr/batcher"
+	"btchrr/dbadapter"
 )
 
 // Btchrr - main struct for the package
 type Btchrr struct {
 	batcher     *batcher.Batcher
 	executor    Executor
+	//TODO: transactional bool
 }
 
 // Executor - interface for the sql execution
